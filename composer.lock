@@ -197,7 +197,9 @@
                 "symfony/event-dispatcher": "~2.8|^3.0",
                 "symfony/http-foundation": "~2.8|^3.0",
                 "symfony/http-kernel": "~2.8|^3.0",
-                "symfony/routing": "~2.8|^3.0"
+                "symfony/routing": "~2.8|^3.0",
+				"ext-mbstring": "*",
+				"ext-cURL": "*"
             },
             "replace": {
                 "silex/api": "self.version",
