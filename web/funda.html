@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="utf-8">
+    <title>Stocks!</title>
+    <meta name="description" content="A free, lightweight, blazing-fast page to get stock quotes using the IEX API">
+    <script type="text/javascript" src="jquery-1.12.4.min.js"></script>
+    <script type="text/javascript">
+	(function($){
+		$.extend($,{
+			sortTable:{
+				sort:function(tableId,Idx){
+					var table = document.getElementById(tableId);
+					var tbody = table.tBodies[0];
+					var tr = tbody.rows;
+			
+					var trValue = new Array();
+					for (var i=0; i<tr.length; i++ ) {
+						trValue[i] = tr[i];
+					}
+			
+					if (tbody.sortCol == Idx) {
+						trValue.reverse();
+					} else {
+						trValue.sort(function(tr1, tr2){
+							var value1 = tr1.cells[Idx].innerText;
+							var value2 = tr2.cells[Idx].innerText;
+							return value1.localeCompare(value2);
+						});
+					}
+			
+					var fragment = document.createDocumentFragment();
+					for (var i=0; i<trValue.length; i++ ) {
+						fragment.appendChild(trValue[i]);
+					}
+			
+					tbody.appendChild(fragment);
+					tbody.sortCol = Idx;
+				}
+			}
+		});          
+	})(jQuery);
+    </script>
+    <style>
+      body {
+		font-size:12px;
+      }
+	  table{
+	    width: 100%;
+		border-collapse:collapse;
+	    border:1px solid #eaecef;
+	  }
+	  th, td {
+		border:1px solid #eaecef;
+		line-height: 16px;		
+		padding: 5px;
+	  }
+	  th {
+		cursor: pointer;
+	  }
+    </style>
+</head>
+
+<body>
+<input id="start" type="button" value="Start" onclick="javascript:start();"/>
+<input id="stop" type="button" value="Stop" disabled="true" onclick="javascript:stop();"/>
+<input type="button" value="Refresh" onclick="javascript:updatePrice();"/>
+<div style="display:inline-block" class="updated-timestamp"></div>
+<div id="message"></div>
+
+<div>
+<p>A30</p>
+<table id="tableA30"></table>
+<p>A32</p>
+<table id="tableA32"></table>
+<p>A35</p>
+<table id="tableA35"></table>
+<p>A40</p>
+<table id="tableA40"></table>
+<p>Aot</p>
+<table id="tableAot"></table>
+</div>
+
+<script>
+      'use strict';
+	  
+	  const PORTFOLIOS = [];
+      const REFRESH_SECONDS = 10;
+      const BATCH_SIZE = 100;
+	  const PROXY_SERVER='https://minipy.herokuapp.com/miniProxy.php?';
+      const SINA_URL = 'http://hq.sinajs.cn/list=';
+	  const JSL_URL = 'https://www.jisilu.cn/data/sfnew/funda_list/?___jsl=LST___t=1545379367479';
+	  
+	  const tables = ["A30", "A32", "A35", "A40", "Aot"];
+	  const columns =["代码", "名称", "净值", "现价", "买一量", "买一", "卖一", "卖一量", "涨幅", "成交额(万元)", "折价率", "买一净价", "卖一净价", "规则", "利率", "利率", "收益率", "年限", "参考指数", "涨幅", "母基需跌", "下折收益", "母基需涨", "溢价率", "溢价率", "A份额(万份)", "A新增(万份)", "A:B", "下次定折", "+"];
+	  
+	  var timer;
+	  let decoder = new TextDecoder("GBK");
+		  
+	  var ref_url = JSL_URL, data_url=SINA_URL;
+	  var para = window.location.search.substr(1)
+	  if(para == "proxy=enable"){
+		ref_url = PROXY_SERVER + JSL_URL;
+		data_url = PROXY_SERVER + SINA_URL;
+	  }
+	  let updatedDiv = document.querySelector('.updated-timestamp');
+	  
+	  var tbodyA30, tbodyA32, tbodyA35, tbodyA40, tbodyAot;
+	  for (var i = 0; i < tables.length; i++) {
+		let table ="<thead><tr>";
+		for (var j = 0; j < columns.length; j++) {
+			table +="<th onclick=\"$.sortTable.sort('table"+ tables[i] + "',"+ j +")\">"+ columns[j] +"</th>";
+		}
+		table +="</tr></thead><tbody id=\"body"+tables[i]+"\"></tbody>";
+		document.getElementById("table"+tables[i]).innerHTML = table;
+	  }
+	  tbodyA30 = document.getElementById('bodyA30');
+	  tbodyA32 = document.getElementById('bodyA32');
+	  tbodyA35 = document.getElementById('bodyA35');
+	  tbodyA40 = document.getElementById('bodyA40');
+	  tbodyAot = document.getElementById('bodyAot');
+		
+	  updateFromJSL();
+	  
+	  function updateFromJSL(){	  
+	  fetch(ref_url).then(response => response.json()).then(json => {  
+		  var a30 = new Array();
+		  var a32 = new Array();
+		  var a35 = new Array();
+		  var a40 = new Array();
+		  var aot = new Array();
+		  
+		  let rows = json.rows;
+		  for (var i = 0; i < rows.length; i++){
+			var row = rows[i];
+			var id = row.id;
+			var cell = row.cell;
+
+			let tablerow = `
+				<tr id="${id}" class="odd">
+				<td data-name="funda_id" ><a href="data/sfnew/detail/${id}" title="" target="_blank">${id}</a></td>
+				<td data-name="funda_name"  title="">${cell.funda_name}</td>
+				<td data-name="funda_value"  title="净值日期：${cell.funda_nav_dt}"><a href="http://www.cninfo.com.cn/information/fund/netvalue/${id}.html" target="_blank">${cell.funda_value}</a></td>
+				<td data-name="funda_current_price" style="text-align: right" title="${cell.price_tips}"><a href="http://q.stock.sohu.com/cn/${id}/index.shtml" target="_blank">${cell.funda_current_price}</a></td>
+				<td style="text-align: right"></td><td style="text-align: right"></td><td style="text-align: right"></td><td style="text-align: right"></td>
+				<td data-name="funda_increase_rt">${cell.funda_increase_rt}</td>
+				<td data-name="funda_volume" style="text-align: right">${cell.funda_volume}</td>
+				<td data-name="funda_discount_rt" style="text-align: right">${cell.funda_discount_rt}</td>
+				<td style="text-align: right"></td><td style="text-align: right"></td>
+				<td data-name="coupon_descr_s"  title="利率规则说明：${cell.coupon_descr}">${cell.coupon_descr_s}</td>
+				<td data-name="funda_coupon" >${cell.funda_coupon}</td>
+				<td data-name="funda_coupon_next" >${cell.funda_coupon_next}</td>
+				<td data-name="funda_profit_rt_next" >${cell.funda_profit_rt_next}</td>
+				<td data-name="funda_left_year">${cell.funda_left_year}</td>
+				<td data-name="funda_index_name" ><a title="${cell.funda_index_id}" target="_blank" href="http://quote.eastmoney.com/zs${cell.funda_index_id}.html">${cell.funda_index_name}</a></td>
+				<td data-name="funda_index_increase_rt">${cell.funda_index_increase_rt}</td>
+				<td data-name="funda_lower_recalc_rt">${cell.funda_lower_recalc_rt}</td>
+				<td data-name="lower_recalc_profit_rt">${cell.lower_recalc_profit_rt}</td>
+				<td data-name="fundb_upper_recalc_rt">${cell.fundb_upper_recalc_rt}</td>
+				<td data-name="funda_base_est_dis_rt_t1" >${cell.funda_base_est_dis_rt_t1}</td>
+				<td data-name="funda_base_est_dis_rt_t2" >${cell.funda_base_est_dis_rt_t2}</td>
+				<td data-name="funda_amount" style="text-align: right">${cell.funda_amount}</td>
+				<td data-name="funda_amount_increase" style="text-align: right" title="A份额增长 ${cell.funda_amount_increase_rt}">${cell.funda_amount_increase}</td>
+				<td data-name="abrate">${cell.abrate}</td>
+				<td data-name="next_recalc_dt" data-sorter="recalcDateSorter" title="定折说明：${cell.fund_descr}">${cell.next_recalc_dt}</td>
+				<td style=\"width:10px\"><a href="#" onclick="mark(this)">+</a></td>
+				</tr>
+			`
+			if(id.substr(0,2) == '50'){
+				id= 'sh'+id;
+			}else{
+				id= 'sz'+id;
+			}
+
+			if(cell.coupon_descr == "+3.0%"){
+				$("#tableA30").find('tbody').append( tablerow );
+				a30.push(id);
+			}else if(cell.coupon_descr == "+3.2%"){
+				$("#tableA32").find('tbody').append( tablerow );
+				a32.push(id);
+			}else if(cell.coupon_descr == "+3.5%"){
+				$("#tableA35").find('tbody').append( tablerow );
+				a35.push(id);
+			}else if(cell.coupon_descr == "+4.0%"){
+				$("#tableA40").find('tbody').append( tablerow );
+				a40.push(id);
+			}else{
+				$("#tableAot").find('tbody').append( tablerow );
+				aot.push(id);
+			}
+		  }
+  
+		  PORTFOLIOS.push({'name': 'a30', 'symbols': a30.join(',')});
+		  PORTFOLIOS.push({'name': 'a32', 'symbols': a32.join(',')});
+		  PORTFOLIOS.push({'name': 'a35', 'symbols': a35.join(',')});
+		  PORTFOLIOS.push({'name': 'a40', 'symbols': a40.join(',')});
+		  PORTFOLIOS.push({'name': 'aot', 'symbols': aot.join(',')});
+	    }).catch(function() {
+		  document.getElementById("message").innerHTML = "To enable the CORS on web browser, you can use following options.<br/>1) Install Allow-Control-Allow-Origin extension on chrome<br/>2) use heroku.com as proxy(e.g. http://localhost:8080/test/stock.html?proxy=enable)<br/>";
+	    });
+	  }
+	  
+ 	  function updatePrice() {
+		for (var index in PORTFOLIOS) {
+			var p = PORTFOLIOS[index];
+			update(p);
+		}
+      }
+	  
+	  function update(p){
+		let url = `${data_url}${p.symbols}`;
+		fetch(url).then(response => response.arrayBuffer()).then(buffer => {
+			var body;
+			if(p.name =='a30'){
+				body = tbodyA30;
+			}else if(p.name =='a32'){
+				body = tbodyA32;
+			}else if(p.name =='a35'){
+				body = tbodyA35;
+			}else if(p.name =='a40'){
+				body = tbodyA40;
+			}else if(p.name =='aot'){
+				body = tbodyAot;
+			}
+			if(body == null) return;
+			let trs = body.getElementsByTagName('tr');
+			
+			let text = decoder.decode(buffer);
+			let values = text.split(";\n");
+			if(trs.length +1 != values.length) return;
+			for (var i = 0; i <trs.length; i++) {
+				var value = values[i];
+				var fields = value.split(",");
+				if (fields.length != 33) continue;
+				
+				//tr.setAttribute('style', `background-color: rgba(${rgbColor}, ${rgbOpacity})`);
+				let tds = trs[i].getElementsByTagName('td');
+				
+				if(fields[3] == 0){
+                    tds[3].firstChild.innerText = fields[2] //当前价 =昨收
+                }else{
+					tds[3].firstChild.innerText = fields[3] //当前价
+                }	
+				tds[4].innerText = fields[10]; //买一量
+				tds[5].innerText = fields[6];  //买一
+				tds[6].innerText = fields[7];  //卖一
+				tds[7].innerText = fields[20]; //卖一量
+				
+				tds[11].innerText = eval(fields[6] - tds[2].innerText +1).toFixed(4) //买一净价
+				tds[12].innerText = eval(fields[7] - tds[2].innerText +1).toFixed(4) //卖一净价
+			}
+			
+			updatedDiv.innerHTML = ` Data updated at ${(new Date()).toLocaleString()}`;
+		});
+	  }
+	  
+	  function stop(){
+		clearInterval(timer);
+		document.getElementById('stop').disabled = true;
+		document.getElementById('start').disabled = false;
+	  }
+	  
+	  function start(){
+		timer = setInterval(updatePrice, REFRESH_SECONDS * 1000);
+		document.getElementById('stop').disabled = false;
+		document.getElementById('start').disabled = true;
+	  }
+	  
+	  function mark(element){
+		var tds = element.parentNode.parentNode.getElementsByTagName("td");
+		tds[1].style.color = "red";
+	  }
+</script>
+</body>
+</html>
