@@ -30,10 +30,14 @@
 						});
 					}
 			
+					var ids = new Array();
 					var fragment = document.createDocumentFragment();
 					for (var i=0; i<trValue.length; i++ ) {
 						fragment.appendChild(trValue[i]);
+						ids.push(trValue[i].getAttribute("id"));
 					}
+					var tid = tableId.replace("tableA", "a");
+					PORTFOLIOS.set(tid, ids.join(','));
 			
 					tbody.appendChild(fragment);
 					tbody.sortCol = Idx;
@@ -85,7 +89,7 @@
 <script>
       'use strict';
 	  
-	  const PORTFOLIOS = [];
+	  const PORTFOLIOS = new Map();
       const REFRESH_SECONDS = 10;
       const BATCH_SIZE = 100;
 	  const PROXY_SERVER='https://minipy.herokuapp.com/miniProxy.php?';
@@ -136,9 +140,15 @@
 			var row = rows[i];
 			var id = row.id;
 			var cell = row.cell;
-
+			var nid;
+			if(id.substr(0,2) == '50'){
+				nid= 'sh'+id;
+			}else{
+				nid= 'sz'+id;
+			}
+			
 			let tablerow = `
-				<tr id="${id}" class="odd">
+				<tr id="${nid}" class="odd">
 				<td data-name="funda_id" ><a href="data/sfnew/detail/${id}" title="" target="_blank">${id}</a></td>
 				<td data-name="funda_name"  title="">${cell.funda_name}</td>
 				<td data-name="funda_value"  title="净值日期：${cell.funda_nav_dt}"><a href="http://www.cninfo.com.cn/information/fund/netvalue/${id}.html" target="_blank">${cell.funda_value}</a></td>
@@ -167,60 +177,55 @@
 				<td style=\"width:10px\"><a href="#" onclick="mark(this)">+</a></td>
 				</tr>
 			`
-			if(id.substr(0,2) == '50'){
-				id= 'sh'+id;
-			}else{
-				id= 'sz'+id;
-			}
+
 
 			if(cell.coupon_descr == "+3.0%"){
 				$("#tableA30").find('tbody').append( tablerow );
-				a30.push(id);
+				a30.push(nid);
 			}else if(cell.coupon_descr == "+3.2%"){
 				$("#tableA32").find('tbody').append( tablerow );
-				a32.push(id);
+				a32.push(nid);
 			}else if(cell.coupon_descr == "+3.5%"){
 				$("#tableA35").find('tbody').append( tablerow );
-				a35.push(id);
+				a35.push(nid);
 			}else if(cell.coupon_descr == "+4.0%"){
 				$("#tableA40").find('tbody').append( tablerow );
-				a40.push(id);
+				a40.push(nid);
 			}else{
 				$("#tableAot").find('tbody').append( tablerow );
-				aot.push(id);
+				aot.push(nid);
 			}
 		  }
   
-		  PORTFOLIOS.push({'name': 'a30', 'symbols': a30.join(',')});
-		  PORTFOLIOS.push({'name': 'a32', 'symbols': a32.join(',')});
-		  PORTFOLIOS.push({'name': 'a35', 'symbols': a35.join(',')});
-		  PORTFOLIOS.push({'name': 'a40', 'symbols': a40.join(',')});
-		  PORTFOLIOS.push({'name': 'aot', 'symbols': aot.join(',')});
+		  PORTFOLIOS.set('a30', a30.join(','));
+		  PORTFOLIOS.set('a32', a32.join(','));
+		  PORTFOLIOS.set('a35', a35.join(','));
+		  PORTFOLIOS.set('a40', a40.join(','));
+		  PORTFOLIOS.set('aot', aot.join(','));
 	    }).catch(function() {
 		  document.getElementById("message").innerHTML = "To enable the CORS on web browser, you can use following options.<br/>1) Install Allow-Control-Allow-Origin extension on chrome<br/>2) use heroku.com as proxy(e.g. http://localhost:8080/test/stock.html?proxy=enable)<br/>";
 	    });
 	  }
 	  
  	  function updatePrice() {
-		for (var index in PORTFOLIOS) {
-			var p = PORTFOLIOS[index];
-			update(p);
+		for(let [k, v] of PORTFOLIOS){
+			update(k, v);
 		}
       }
 	  
-	  function update(p){
-		let url = `${data_url}${p.symbols}`;
+	  function update(k, v){
+		let url = `${data_url}${v}`;
 		fetch(url).then(response => response.arrayBuffer()).then(buffer => {
 			var body;
-			if(p.name =='a30'){
+			if(k =='a30'){
 				body = tbodyA30;
-			}else if(p.name =='a32'){
+			}else if(k =='a32'){
 				body = tbodyA32;
-			}else if(p.name =='a35'){
+			}else if(k =='a35'){
 				body = tbodyA35;
-			}else if(p.name =='a40'){
+			}else if(k =='a40'){
 				body = tbodyA40;
-			}else if(p.name =='aot'){
+			}else if(k =='aot'){
 				body = tbodyAot;
 			}
 			if(body == null) return;
